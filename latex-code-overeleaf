@@ -1,0 +1,425 @@
+% ============================================================
+%  Mini Project Report: Image Generation Using GANs (DCGAN)
+%  Dataset: Fashion-MNIST | Framework: TensorFlow/Keras
+%  Compile with pdfLaTeX (Overleaf default works).
+%  Edit the "EDIT THESE" block, then replace the red [FILL ...]
+%  notes after you check your own results.
+% ============================================================
+\documentclass[12pt,a4paper]{article}
+
+\usepackage[a4paper,margin=1in]{geometry}
+\usepackage{mathptmx}
+\usepackage{graphicx,booktabs,array,float,caption,setspace,amsmath,amssymb,xcolor}
+\usepackage{titlesec,enumitem,url}
+\usepackage[colorlinks=true,linkcolor=black,urlcolor=blue]{hyperref}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,calc}
+
+\onehalfspacing
+\setlength{\parskip}{4pt}
+\captionsetup{font=small}
+\titleformat{\section}{\Large\bfseries}{\thesection.}{0.5em}{}
+
+% ---------------- EDIT THESE ----------------
+\newcommand{\StudentName}{MUHAMMED ISMAIL MAAIZ}
+\newcommand{\StudentUSN}{4PA23AI041}                 % <- put your USN
+\newcommand{\GuideName}{Dr. Mohammed Zakir Bellary}  % <- confirm
+\newcommand{\NumEpochs}{10}                          % epochs you trained
+\newcommand{\BatchSize}{128}                         % batch size used
+% --------------------------------------------
+
+\newcommand{\fillin}[1]{\textcolor{red}{[FILL: #1]}}
+\newcommand{\figorbox}[2]{%
+  \IfFileExists{#1}{\includegraphics[width=#2]{#1}}%
+  {\fbox{\parbox[c][4cm][c]{#2}{\centering\textit{Insert image file: \texttt{#1}}}}}}
+
+\begin{document}
+
+% ======================= COVER PAGE =======================
+\begin{titlepage}
+\thispagestyle{empty}
+\singlespacing
+\begin{tikzpicture}[remember picture,overlay]
+  \draw[line width=1.5pt]
+    ([shift={(1.5cm,1.5cm)}]current page.south west) rectangle
+    ([shift={(-1.5cm,-1.5cm)}]current page.north east);
+\end{tikzpicture}
+\centering
+\vspace*{0.3cm}
+{\LARGE\linespread{1.2}\selectfont P.A. COLLEGE OF ENGINEERING,\\[8pt] MANGALORE\par}
+\vspace{0.7cm}
+\IfFileExists{pace-logo.png}{\includegraphics[height=3.5cm]{pace-logo.png}}%
+{\fbox{\parbox[c][3.5cm][c]{5cm}{\centering\textit{Insert college logo\\(logo.png)}}}}
+\vspace{1cm}
+
+{\Large Report\\[4pt] On\\[4pt] Subject Based Mini Project\\[4pt] Of\par}
+\vspace{0.4cm}
+{\Large\textbf{DEEP LEARNING \& REINFORCEMENT LEARNING}\par}
+\vspace{0.3cm}
+{\large By The Department Of\par}
+\vspace{0.3cm}
+{\Large\linespread{1.2}\selectfont\textbf{ARTIFICIAL INTELLIGENCE AND MACHINE LEARNING}\par}
+\vspace{1cm}
+{\Large\linespread{1.2}\selectfont\textbf{Image Generation Using Generative Adversarial Networks (GANs)}\par}
+\vspace{1cm}
+{\large\textbf{Submitted By}\par}
+\vspace{0.3cm}
+{\large\textbf{\StudentName \hspace{1.5cm} \StudentUSN}\par}
+\vspace{0.9cm}
+{\large\textbf{Submitted To}\par}
+\vspace{0.3cm}
+{\large \GuideName\par}
+\end{titlepage}
+
+\newpage
+\setcounter{page}{1}
+
+% ======================= 1. INTRODUCTION =======================
+\section{Introduction}
+Creating new, realistic images has traditionally required artists, photographers or
+designers. Classical image editing tools can only modify images that already exist, and
+they cannot produce entirely new pictures that look like they belong to a real collection.
+
+Generative Adversarial Networks (GANs), introduced by Goodfellow et al.\ in 2014, solve
+this problem with a simple idea: two neural networks are trained against each other. The
+\textbf{Generator} takes random noise and tries to produce a realistic image. The
+\textbf{Discriminator} looks at an image and decides whether it is real (from the dataset)
+or fake (made by the Generator). The Generator improves by trying to fool the Discriminator,
+and the Discriminator improves by catching the fakes. This competition is called
+\textit{adversarial training}.
+
+In this project, a Deep Convolutional GAN (DCGAN), proposed by Radford et al.\ (2016), was
+implemented in TensorFlow/Keras and trained on the Fashion-MNIST dataset to generate new
+synthetic images of clothing items. The trained Generator was connected to an interactive
+interface built with ipywidgets in a Google Colab notebook, where the user can choose a
+saved training checkpoint, select the number of images, and generate new images with a
+button click.
+
+% ======================= 2. OBJECTIVES =======================
+\section{Objectives}
+The main objective of this project is to train a neural network that generates new
+synthetic fashion images from random noise. The specific objectives are:
+\begin{enumerate}[leftmargin=*]
+  \item To design a DCGAN Generator that converts a 100-dimensional random noise vector
+        into a $28\times28$ grayscale image using Dense, Reshape and transposed
+        convolution (Conv2DTranspose) layers.
+  \item To design a convolutional Discriminator that classifies images as real or fake.
+  \item To implement a custom adversarial training loop using \texttt{tf.GradientTape},
+        binary cross-entropy loss and separate Adam optimizers for the two networks.
+  \item To record the training losses and save generated image grids and Generator
+        checkpoints during training.
+  \item To build a simple interactive interface that uses the trained Generator.
+  \item To save the trained models in the native Keras format and reload the Generator
+        to generate images without retraining.
+  \item To study the quality and limitations of the generated images.
+\end{enumerate}
+
+% ======================= 3. SYSTEM ARCHITECTURE =======================
+\section{System Architecture}
+The system has four main parts: the data pipeline, the Generator, the Discriminator and the
+interactive interface. During training, the Generator creates fake images from random
+noise, and the Discriminator receives real images from the dataset as well as these fake
+images. The Discriminator output is used to compute two losses, one for each network. The
+gradients of these losses are used by two separate Adam optimizers to update the weights of
+the Generator and the Discriminator. The overall flow is shown in Fig.~\ref{fig:arch}.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  box/.style={draw, rounded corners, align=center, font=\footnotesize,
+              minimum height=1cm, minimum width=2.5cm, fill=gray!10},
+  arr/.style={-{Stealth[length=2.5mm]}, thick}]
+  \node[box] (z)    at (0,0)     {Random noise $z$\\(100-d vector)};
+  \node[box] (g)    at (3.6,0)   {Generator\\(Dense + Conv2DTranspose)};
+  \node[box] (fake) at (7.2,0)   {Fake image\\$28\times28\times 1$};
+  \node[box] (real) at (7.2,-2.2){Real image\\(Fashion-MNIST)};
+  \node[box] (d)    at (10.8,-1.1){Discriminator\\(Conv2D + Dropout)};
+  \node[box] (loss) at (10.8,-3.4){BCE losses\\(D loss, G loss)};
+  \node[box] (opt)  at (3.6,-3.4) {Adam optimizers\\(one for G, one for D)};
+  \draw[arr] (z)--(g);
+  \draw[arr] (g)--(fake);
+  \draw[arr] (fake.east)--(d.west);
+  \draw[arr] (real.east)--(d.west);
+  \draw[arr] (d)--(loss);
+  \draw[arr] (loss)--(opt);
+  \draw[arr,dashed] (opt)--node[right,font=\scriptsize]{update weights}(g);
+\end{tikzpicture}
+\caption{System architecture of the DCGAN training process}
+\label{fig:arch}
+\end{figure}
+
+\textbf{Generator.} The 100-dimensional noise vector is passed through a Dense layer with
+$7\times7\times128$ units and reshaped into a $7\times7\times128$ feature map. Two
+transposed convolution layers with stride 2 then increase the size from $7\times7$ to
+$14\times14$ and then to $28\times28$. A final transposed convolution layer with a Tanh
+activation produces a $28\times28\times1$ image with pixel values in $[-1,1]$. Batch
+normalization and LeakyReLU are used in the hidden layers to stabilize training
+(Table~\ref{tab:gen}).
+
+\textbf{Discriminator.} The Discriminator takes a $28\times28\times1$ image and uses two
+strided convolution layers to reduce it to $14\times14$ and then $7\times7$ feature maps.
+LeakyReLU activations and Dropout (0.3) are used after each convolution. The result is
+flattened and passed to a single Dense unit that outputs a logit (a raw score) for real or
+fake. No Sigmoid is used in the model, because the loss function is configured with
+\texttt{from\_logits=True} (Table~\ref{tab:disc}).
+
+\begin{table}[H]
+\centering
+\caption{Generator architecture}
+\label{tab:gen}
+\begin{tabular}{@{}llc@{}}
+\toprule
+\textbf{Layer} & \textbf{Details} & \textbf{Output shape}\\
+\midrule
+Input & Noise vector $z$ & $100$\\
+Dense & $7\times7\times128$ units, no bias & $6272$\\
+BatchNorm + LeakyReLU & slope 0.2 & $6272$\\
+Reshape & to feature map & $7\times7\times128$\\
+Conv2DTranspose & 64 filters, k=5, s=2, same, BN, LeakyReLU & $14\times14\times64$\\
+Conv2DTranspose & 32 filters, k=5, s=2, same, BN, LeakyReLU & $28\times28\times32$\\
+Conv2DTranspose & 1 filter, k=5, s=1, same, Tanh & $28\times28\times1$\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{Discriminator architecture}
+\label{tab:disc}
+\begin{tabular}{@{}llc@{}}
+\toprule
+\textbf{Layer} & \textbf{Details} & \textbf{Output shape}\\
+\midrule
+Input & Real or fake image & $28\times28\times1$\\
+Conv2D & 64 filters, k=5, s=2, same, LeakyReLU(0.2), Dropout(0.3) & $14\times14\times64$\\
+Conv2D & 128 filters, k=5, s=2, same, LeakyReLU(0.2), Dropout(0.3) & $7\times7\times128$\\
+Flatten & -- & $6272$\\
+Dense & 1 unit (logit, no activation) & $1$\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Interactive interface.} The interface, built with ipywidgets, loads the saved
+Generator checkpoints. The user selects a checkpoint (epoch) from a dropdown, sets the
+number of images with a slider, and clicks \emph{Generate new images}. A second button shows
+the training loss graph, and a status message tells the user what the application is doing.
+A Matplotlib-based fallback function is provided in case ipywidgets does not work.
+
+% ======================= 4. DATASET =======================
+\section{Dataset Used}
+The Fashion-MNIST dataset, released by Zalando Research (Xiao, Rasul and Vollgraf, 2017),
+was used. It contains 60,000 training images and 10,000 test images of clothing items.
+Each image is a $28\times28$ grayscale picture, and there are 10 classes: T-shirt/top,
+trouser, pullover, dress, coat, sandal, shirt, sneaker, bag and ankle boot. The dataset
+is downloaded automatically through Keras, so no manual download is needed. It is small
+and light, which makes it suitable for training a GAN quickly in a student environment.
+
+A GAN learns the overall distribution of the images, so the class labels and the test set
+were not used. Only the 60,000 training images were used.
+
+\textbf{Preprocessing.} The pixel values were converted from the range $[0,255]$ to
+$[-1,1]$ using $x' = (x-127.5)/127.5$. This matches the Tanh output of the Generator, so
+real and generated images lie on the same scale. A channel dimension was added so that
+each image has the shape $28\times28\times1$. The data was then shuffled and divided into
+batches of \BatchSize\ images using \texttt{tf.data}.
+
+\begin{figure}[H]
+\centering
+\figorbox{fig-real-samples.png}{0.85\textwidth}
+\caption{Sample real images from the Fashion-MNIST dataset}
+\end{figure}
+
+% ======================= 5. TECHNOLOGIES =======================
+\section{Technologies Used}
+\begin{table}[H]
+\centering
+\caption{Technologies used}
+\begin{tabular}{@{}p{4.2cm}p{10.3cm}@{}}
+\toprule
+\textbf{Technology} & \textbf{Purpose}\\
+\midrule
+Python & Core programming language\\
+TensorFlow / Keras & Deep learning framework (models, GradientTape, Adam optimizer, dataset loading)\\
+NumPy & Array handling and image scaling\\
+Matplotlib & Displaying images, image grids and loss curves\\
+ipywidgets & Interactive buttons, slider and dropdown in the notebook\\
+Google Colab & Development and training environment (GPU when available)\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ======================= 6. METHODOLOGY =======================
+\section{Methodology}
+\textbf{Setup.} The required libraries were imported, the availability of a GPU was
+checked (training also runs on a CPU, but more slowly), and the random seeds of Python,
+NumPy and TensorFlow were fixed to 42 for reproducible results.
+
+\textbf{Data preparation.} The dataset was loaded, normalized to $[-1,1]$ and batched as
+described in Section~4.
+
+\textbf{Loss functions.} The Discriminator is trained to output 1 for real images and 0
+for fake images. With binary cross-entropy (BCE), its loss is
+\[
+L_D = -\mathbb{E}_{x}\left[\log D(x)\right] - \mathbb{E}_{z}\left[\log\left(1 - D(G(z))\right)\right].
+\]
+The Generator is trained to make the Discriminator classify its images as real. The
+commonly used non-saturating form of its loss is
+\[
+L_G = -\mathbb{E}_{z}\left[\log D(G(z))\right],
+\]
+which gives stronger gradients to the Generator early in training. In the code, BCE is used
+with \texttt{from\_logits=True}, so the Sigmoid is applied inside the loss function, which is
+numerically more stable.
+
+\textbf{Training loop.} A custom training step, compiled with \texttt{tf.function}, was
+written using \texttt{tf.GradientTape}. In each step, a batch of noise vectors is passed
+through the Generator to create fake images. The Discriminator then scores the real batch
+and the fake batch. The Discriminator loss (real images should score 1, fake images 0) and
+the Generator loss (fake images should score 1) are computed, and two gradient tapes
+give the gradients of each loss with respect to the weights of its own network. Two separate
+Adam optimizers then update the Generator and the Discriminator.
+
+\textbf{Monitoring and checkpoints.} The average Generator and Discriminator losses were
+recorded at the end of every epoch. A fixed set of 16 noise vectors was used to generate and
+save an image grid after every epoch, so the progress can be compared on the same inputs.
+The Generator was also saved as a checkpoint after every epoch, which allows the interface
+to generate images from any saved stage of training.
+
+\begin{table}[H]
+\centering
+\caption{Training configuration}
+\begin{tabular}{@{}p{5.5cm}p{9cm}@{}}
+\toprule
+\textbf{Parameter} & \textbf{Value}\\
+\midrule
+Model & DCGAN (Generator and Discriminator)\\
+Dataset & Fashion-MNIST (60,000 training images)\\
+Image size & $28\times28$ pixels, 1 channel\\
+Noise dimension & 100\\
+Batch size & \BatchSize\\
+Epochs & \NumEpochs\\
+Optimizer & Adam (separate for G and D), learning rate $2\times10^{-4}$, $\beta_1=0.5$\\
+Loss & Binary cross-entropy (\texttt{from\_logits=True})\\
+Random seed & 42\\
+Hardware & Google Colab (GPU when available)\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Saving and reloading.} After training, the Generator and the Discriminator were
+saved in the native Keras format (\texttt{.keras}). The Generator can be reloaded with
+\texttt{keras.models.load\_model} and used to create new images without any retraining.
+
+% ======================= 7. EVALUATION =======================
+\section{Evaluation Metrics}
+A GAN has no single correct output, and its loss values do not behave like the loss of a
+classifier, so accuracy cannot be used. The system was evaluated in the following ways.
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Loss curves:} the Generator and Discriminator losses were plotted over all
+        epochs. Curves that stay in a similar range, without one network completely
+        dominating, indicate that training is balanced.
+  \item \textbf{Visual inspection:} image grids from different epochs were checked to see
+        whether clothing shapes (shirts, shoes, bags and so on) become recognizable and
+        whether the images contain noise or broken regions.
+  \item \textbf{Diversity check:} the grids were checked for repeated images or a single
+        dominant category, which would indicate mode collapse.
+\end{itemize}
+No quantitative image-quality metric such as the Fr\'echet Inception Distance (FID) was
+computed, so the quality was judged visually only.
+
+% ======================= 8. RESULTS =======================
+\section{Results}
+Fig.~\ref{fig:epochs} shows images generated from the same fixed noise vectors at different
+epochs. In the first epoch the images are only blurry blobs with little structure. As
+training continues, the Generator learns the outlines of the clothing items and the
+different categories become recognizable.
+
+\begin{figure}[H]
+\centering
+\figorbox{fig-epoch-comparison.png}{\textwidth}
+\caption{Generated images at the first, middle and last epoch (same fixed noise)}
+\label{fig:epochs}
+\end{figure}
+
+The loss curves of the two networks are shown in Fig.~\ref{fig:loss}.
+
+\begin{figure}[H]
+\centering
+\figorbox{fig-loss-curves.png}{0.8\textwidth}
+\caption{Generator and Discriminator loss during training}
+\label{fig:loss}
+\end{figure}
+
+Fig.~\ref{fig:final} shows 16 new images generated by the reloaded Generator from fresh
+random noise that was not used during training.
+
+\begin{figure}[H]
+\centering
+\figorbox{fig-final-grid.png}{0.65\textwidth}
+\caption{Final demonstration: 16 newly generated images from random noise}
+\label{fig:final}
+\end{figure}
+
+The interactive interface is shown in Fig.~\ref{fig:ui}. The user selects the checkpoint and
+the number of images, and the generated images are displayed below the controls together
+with a status message.
+
+\begin{figure}[H]
+\centering
+\figorbox{fig-ui.png}{0.9\textwidth}
+\caption{Interactive interface for generating images from saved checkpoints}
+\label{fig:ui}
+\end{figure}
+
+\textbf{Discussion.} The results show that the Generator learned the general shapes of
+clothing items from the dataset without using any labels. Because every checkpoint is saved,
+the interface also lets the user compare the output of early and late stages of training.
+
+Some limitations can also be seen. The model was trained for only \NumEpochs\ epochs, so the
+images are recognizable but not realistic, and some images contain noisy textures or
+unclear shapes. The Generator may also favour a few easy categories, such as shoes or bags,
+and repeat similar images, which is called mode collapse. GAN training is unstable in
+general, and the loss values alone do not show how good the images are. Finally, quality was
+judged visually only, and the user cannot choose which type of clothing is generated.
+
+% ======================= 9. CONCLUSION =======================
+\section{Conclusion}
+This project demonstrates the use of a Deep Convolutional GAN for image generation. A
+Generator and a Discriminator were built in TensorFlow/Keras and trained against each other
+on the Fashion-MNIST dataset, using binary cross-entropy loss, a custom \texttt{GradientTape}
+training loop and separate Adam optimizers. The generated images improved during training,
+starting from blurry blobs and developing recognizable clothing shapes. The trained Generator
+was saved and reloaded to create new images without retraining, and an interactive interface
+was built in which the user can choose a checkpoint and generate new images.
+
+The main limitations are the short training time, the small image size, the lack of
+control over the clothing type and the possibility of mode collapse. Despite these limits,
+the project shows how two competing networks can learn to create new images from random
+noise without any labels.
+
+% ======================= 10. FUTURE SCOPE =======================
+\section{Future Scope}
+The project can be improved in several ways. Training for more epochs can produce sharper
+and more varied images. A conditional GAN that uses the 10 class labels would let the user
+choose the type of clothing to generate. More stable training methods such as the
+Wasserstein GAN with gradient penalty (WGAN-GP) can reduce instability and mode collapse.
+A quantitative metric such as the Fr\'echet Inception Distance (FID) can be added to
+measure image quality. The same model can also be applied to larger and more complex
+datasets at a higher resolution. Finally, the application can be deployed as a web
+application so that it can be used from any device.
+
+% ======================= 11. REFERENCES =======================
+\section{References}
+\begin{enumerate}[label=\arabic*., leftmargin=*]
+  \item I. Goodfellow et al., ``Generative Adversarial Nets,'' Advances in Neural
+        Information Processing Systems (NeurIPS), 2014.
+  \item A. Radford, L. Metz and S. Chintala, ``Unsupervised Representation Learning with
+        Deep Convolutional Generative Adversarial Networks,'' ICLR, 2016 (arXiv:1511.06434).
+  \item H. Xiao, K. Rasul and R. Vollgraf, ``Fashion-MNIST: a Novel Image Dataset for
+        Benchmarking Machine Learning Algorithms,'' arXiv:1708.07747, 2017.
+  \item D. P. Kingma and J. Ba, ``Adam: A Method for Stochastic Optimization,'' ICLR, 2015.
+  \item TensorFlow and Keras Documentation, \url{https://www.tensorflow.org/api_docs}
+  \item ipywidgets Documentation, \url{https://ipywidgets.readthedocs.io}
+\end{enumerate}
+
+\end{document}
